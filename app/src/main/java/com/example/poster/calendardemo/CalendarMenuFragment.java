@@ -22,7 +22,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.TextView;
+import android.widget.TimePicker;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -35,8 +35,6 @@ import java.util.Date;
 
 public class CalendarMenuFragment extends Fragment{
     private final String LOG_TAG = "myLogs";
-    private TextView curentTime;
-    private TextView descr;
     private ListView listView;
     private ArrayList<TimeModel> arrayList = null;
     private int idCurItemList = 0;
@@ -50,6 +48,8 @@ public class CalendarMenuFragment extends Fragment{
     private String month;
     private String year;
     private Button add;
+    private int hour;
+    private int min;
 
     @Nullable
     @Override
@@ -57,6 +57,7 @@ public class CalendarMenuFragment extends Fragment{
         View view = inflater.inflate(R.layout.fragment_calendar_menu, container, false);
         innitWidgets(view);
         getArgsFromBundle();
+        innitDB();
         new LoadData().execute();
 
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -68,6 +69,7 @@ public class CalendarMenuFragment extends Fragment{
                 if (c.moveToFirst()){
                     idCurItemList = c.getInt(c.getColumnIndex("id"));
                 }
+
                 helper.close();
                 c.close();
                 alertDialog(position);
@@ -77,6 +79,7 @@ public class CalendarMenuFragment extends Fragment{
         add.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                innitDB();
                 alertDialog(0);
             }
         });
@@ -85,8 +88,6 @@ public class CalendarMenuFragment extends Fragment{
 
     private void innitWidgets(View view) {
         listView = (ListView)view.findViewById(R.id.time_list);
-        curentTime = (TextView)view.findViewById(R.id.custom_time);
-        descr = (TextView)view.findViewById(R.id.item_description);
         add = (Button)view.findViewById(R.id.addListItemBtn);
     }
 
@@ -101,8 +102,16 @@ public class CalendarMenuFragment extends Fragment{
         View style = getLayoutInflater(getArguments()).inflate(R.layout.style_of_alert, null, false);
         final EditText description = (EditText)style.findViewById(R.id.alertDescr);
         final CheckBox checkNotif = (CheckBox)style.findViewById(R.id.alertCheckbox);
-        final EditText time = (EditText)style.findViewById(R.id.time);
+        final TimePicker timePicker = (TimePicker)style.findViewById(R.id.timePicker);
 
+        timePicker.setIs24HourView(true);
+        timePicker.setOnTimeChangedListener(new TimePicker.OnTimeChangedListener() {
+            @Override
+            public void onTimeChanged(TimePicker view, int hourOfDay, int minute) {
+                hour = hourOfDay;
+                min = minute;
+            }
+        });
         if (idCurItemList != 0){
             description.setText(arrayList.get(position).getDescription());
             if (arrayList.get(position).getIsNotif() == 0){
@@ -110,9 +119,12 @@ public class CalendarMenuFragment extends Fragment{
             }else {
                 checkNotif.setChecked(true);
             }
-            time.setText(String.valueOf(arrayList.get(position).getCurrentTime()));
+            timePicker.setCurrentHour(arrayList.get(position).getCurrentTime() / 60);
+            timePicker.setCurrentMinute(arrayList.get(position).getCurrentTime() % 60);
+        }else{
+            timePicker.setCurrentHour(0);
+            timePicker.setCurrentMinute(0);
         }
-
         AlertDialog alertDialog = new AlertDialog.Builder(getContext())
                 .setTitle("Set alarm clock settings")
                 .setIcon(R.drawable.ic_add_alert_black_24dp)
@@ -131,7 +143,7 @@ public class CalendarMenuFragment extends Fragment{
                             cv.put("year", year);
                             cv.put("month", month);
                             cv.put("day_of_month", day);
-                            cv.put("event_time", Integer.valueOf(time.getText().toString()));
+                            cv.put("event_time", timeToMinutes(hour, min));
                             db.insert("events", null, cv);
                         }else {
                             cv.put("description", description.getText().toString());
@@ -140,22 +152,14 @@ public class CalendarMenuFragment extends Fragment{
                             }else {
                                 cv.put("is_notify", 0);
                             }
-                            cv.put("event_time", Integer.valueOf(time.getText().toString()));
+                            cv.put("event_time", timeToMinutes(hour, min));
                             db.update("events", cv, "id=?", new String[]{Integer.toString(idCurItemList)});
                             idCurItemList = 0;
                         }
                         helper.close();
                         c.close();
                         new LoadData().execute();
-
-                        Calendar calendar = Calendar.getInstance();
-                        PendingIntent pi = PendingIntent.getBroadcast(getContext(), 101, new Intent("wakeup"),
-                                PendingIntent.FLAG_ONE_SHOT);
-                        AlarmManager manager = (AlarmManager)getContext().getSystemService(Context.ALARM_SERVICE);
-                        calendar.setTime(new Date(System.currentTimeMillis()));
-                        calendar.add(Calendar.MINUTE, 1);
-                        manager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTime().getTime(), AlarmManager.INTERVAL_HOUR, pi);
-
+                        setAlarmManager(getContext());
                     }
                 }).setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
                     @Override
@@ -211,5 +215,27 @@ public class CalendarMenuFragment extends Fragment{
             c.close();
             helper.close();
         }
+    }
+    private Integer timeToMinutes(int hours, int minutes){
+        return Integer.valueOf(hours * 60 + minutes);
+    }
+    private void setAlarmManager(Context context){
+        Calendar calendar = Calendar.getInstance();
+        PendingIntent pi = PendingIntent.getBroadcast(context, 101, new Intent("wakeup"),
+                PendingIntent.FLAG_ONE_SHOT);
+        AlarmManager manager = (AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
+        calendar.setTime(new Date(System.currentTimeMillis()));
+        calendar.add(Calendar.MILLISECOND, (int)((timeToSeconds(Integer.valueOf(year), Integer.valueOf(month) - 1, Integer.valueOf(day), hour, min)
+                - calendar.getTimeInMillis())) / 1000);
+
+        long time = calendar.getTimeInMillis();
+        System.out.println("set alarm" + time);
+        manager.setRepeating(AlarmManager.RTC_WAKEUP, time, AlarmManager.INTERVAL_HOUR, pi);
+    }
+
+    private long timeToSeconds(Integer year, Integer month, Integer day, int hour, int min){
+        Calendar feature_cal = Calendar.getInstance();
+        feature_cal.set(year, month, day, hour, min);
+        return feature_cal.getTimeInMillis();
     }
 }

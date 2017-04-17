@@ -20,7 +20,9 @@ public class CustomListItem extends BaseAdapter{
     private ImageView notifImage;
     private ArrayList<TimeModel> list = new ArrayList<>();
     private LayoutInflater layoutInflater;
-    private Context context;
+    private int hours;
+    private int minutes;
+
 
     public CustomListItem(ArrayList<TimeModel> list, Context context) {
         this.list = list;
@@ -51,7 +53,8 @@ public class CustomListItem extends BaseAdapter{
         notifImage = (ImageView)convertView.findViewById(R.id.notifImageV);
 
         if (list.get(position).getCurrentTime() != 0){
-            customTime.setText(list.get(position).getCurrentTime() + ":00");
+            minutesToTime(position);
+            customTime.setText(hours + ":" + minutes);
         }
         itemDescription.setText(list.get(position).getDescription());
         if (list.get(position).getIsNotif() == 0){
@@ -60,5 +63,9 @@ public class CustomListItem extends BaseAdapter{
             notifImage.setImageResource(R.drawable.ic_notifications_black_24dp);
         }
         return convertView;
+    }
+    private void minutesToTime(int position){
+        hours = list.get(position).getCurrentTime() / 60;
+        minutes = list.get(position).getCurrentTime() % 60;
     }
 }

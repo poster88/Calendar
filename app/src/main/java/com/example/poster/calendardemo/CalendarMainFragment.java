@@ -29,7 +29,6 @@ public class CalendarMainFragment extends Fragment {
         if (calendarMenuFragment == null){
             calendarMenuFragment = new CalendarMenuFragment();
         }
-
         calendarView.setOnDateChangeListener(new CalendarView.OnDateChangeListener() {
             @Override
             public void onSelectedDayChange(@NonNull CalendarView view, int year, int month, int dayOfMonth) {
